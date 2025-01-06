@@ -7,33 +7,32 @@
 
 void MemoryDescriptor::Initialize()
 {
-	KernelPageManager& kernelPageManager = Kernel::Instance().GetKernelPageManager();
-	
+	KernelPageManager &kernelPageManager = Kernel::Instance().GetKernelPageManager();
+
 	/* m_UserPageTableArray需要把AllocMemory()返回的物理内存地址 + 0xC0000000 */
-	this->m_UserPageTableArray = (PageTable*)(kernelPageManager.AllocMemory(sizeof(PageTable) * USER_SPACE_PAGE_TABLE_CNT) + Machine::KERNEL_SPACE_START_ADDRESS);
+	this->m_UserPageTableArray = (PageTable *)(kernelPageManager.AllocMemory(sizeof(PageTable) * USER_SPACE_PAGE_TABLE_CNT) + Machine::KERNEL_SPACE_START_ADDRESS);
 }
 
 void MemoryDescriptor::Release()
 {
-	KernelPageManager& kernelPageManager = Kernel::Instance().GetKernelPageManager();
-	if ( this->m_UserPageTableArray )
+	KernelPageManager &kernelPageManager = Kernel::Instance().GetKernelPageManager();
+	if (this->m_UserPageTableArray)
 	{
 		kernelPageManager.FreeMemory(sizeof(PageTable) * USER_SPACE_PAGE_TABLE_CNT, (unsigned long)this->m_UserPageTableArray - Machine::KERNEL_SPACE_START_ADDRESS);
 		this->m_UserPageTableArray = NULL;
 	}
 }
 
-
 unsigned int MemoryDescriptor::MapEntry(unsigned long virtualAddress, unsigned int size, unsigned long phyPageIdx, bool isReadWrite)
-{	
+{
 	unsigned long address = virtualAddress - USER_SPACE_START_ADDRESS;
-	
-	//计算从pagetable的哪一个地址开始映射
-	unsigned long startIdx = address >> 12;
-	unsigned long cnt = ( size + (PageManager::PAGE_SIZE - 1) )/ PageManager::PAGE_SIZE;
 
-	PageTableEntry* entrys = (PageTableEntry*)this->m_UserPageTableArray;
-	for ( unsigned int i = startIdx; i < startIdx + cnt; i++, phyPageIdx++ )
+	// 计算从pagetable的哪一个地址开始映射
+	unsigned long startIdx = address >> 12;
+	unsigned long cnt = (size + (PageManager::PAGE_SIZE - 1)) / PageManager::PAGE_SIZE;
+
+	PageTableEntry *entrys = (PageTableEntry *)this->m_UserPageTableArray;
+	for (unsigned int i = startIdx; i < startIdx + cnt; i++, phyPageIdx++)
 	{
 		entrys[i].m_Present = 0x1;
 		entrys[i].m_ReadWriter = isReadWrite;
@@ -57,7 +56,7 @@ void MemoryDescriptor::MapStackEntrys(unsigned long stackSize, unsigned long sta
 	this->MapEntry(stackStartAddress, stackSize, stackPageIdx, true);
 }
 
-PageTable* MemoryDescriptor::GetUserPageTableArray()
+PageTable *MemoryDescriptor::GetUserPageTableArray()
 {
 	return this->m_UserPageTableArray;
 }
@@ -82,15 +81,15 @@ unsigned long MemoryDescriptor::GetStackSize()
 	return this->m_StackSize;
 }
 
-bool MemoryDescriptor::EstablishUserPageTable( unsigned long textVirtualAddress, unsigned long textSize, unsigned long dataVirtualAddress, unsigned long dataSize, unsigned long stackSize )
+bool MemoryDescriptor::EstablishUserPageTable(unsigned long textVirtualAddress, unsigned long textSize, unsigned long dataVirtualAddress, unsigned long dataSize, unsigned long stackSize)
 {
-	User& u = Kernel::Instance().GetUser();
+	User &u = Kernel::Instance().GetUser();
 
 	/* 如果超出允许的用户程序最大8M的地址空间限制 */
-	if ( textSize + dataSize + stackSize  + PageManager::PAGE_SIZE > USER_SPACE_SIZE - textVirtualAddress)
+	if (textSize + dataSize + stackSize + PageManager::PAGE_SIZE > USER_SPACE_SIZE - textVirtualAddress)
 	{
 		u.u_error = User::ENOMEM;
-		Diagnose::Write("u.u_error = %d\n",u.u_error);
+		Diagnose::Write("u.u_error = %d\n", u.u_error);
 		return false;
 	}
 
@@ -109,21 +108,21 @@ bool MemoryDescriptor::EstablishUserPageTable( unsigned long textVirtualAddress,
 	this->MapEntry(stackStartAddress, stackSize, phyPageIndex, true);
 
 	/* 将相对地址映照表根据正文段和数据段在内存中的起始地址pText->x_caddr、p_addr，建立用户态内存区的页表映射 */
-	this->MapToPageTable();
+	this->NMapToPageTable();
 	return true;
 }
 
 void MemoryDescriptor::ClearUserPageTable()
 {
-	User& u = Kernel::Instance().GetUser();
-	PageTable* pUserPageTable = u.u_MemoryDescriptor.m_UserPageTableArray;
+	User &u = Kernel::Instance().GetUser();
+	PageTable *pUserPageTable = u.u_MemoryDescriptor.m_UserPageTableArray;
 
-	unsigned int i ;
-	unsigned int j ;
+	unsigned int i;
+	unsigned int j;
 
 	for (i = 0; i < Machine::USER_PAGE_TABLE_CNT; i++)
 	{
-		for (j = 0; j < PageTable::ENTRY_CNT_PER_PAGETABLE; j++ )
+		for (j = 0; j < PageTable::ENTRY_CNT_PER_PAGETABLE; j++)
 		{
 			pUserPageTable[i].m_Entrys[j].m_Present = 0;
 			pUserPageTable[i].m_Entrys[j].m_ReadWriter = 0;
@@ -131,40 +130,39 @@ void MemoryDescriptor::ClearUserPageTable()
 			pUserPageTable[i].m_Entrys[j].m_PageBaseAddress = 0;
 		}
 	}
-
 }
 
 void MemoryDescriptor::MapToPageTable()
 {
-	User& u = Kernel::Instance().GetUser();
+	User &u = Kernel::Instance().GetUser();
 
-	if(u.u_MemoryDescriptor.m_UserPageTableArray == NULL)
+	if (u.u_MemoryDescriptor.m_UserPageTableArray == NULL)
 		return;
 
-	PageTable* pUserPageTable = Machine::Instance().GetUserPageTableArray();
+	PageTable *pUserPageTable = Machine::Instance().GetUserPageTableArray();
 	unsigned int textAddress = 0;
-	if ( u.u_procp->p_textp != NULL )
+	if (u.u_procp->p_textp != NULL)
 	{
 		textAddress = u.u_procp->p_textp->x_caddr;
 	}
 
 	for (unsigned int i = 0; i < Machine::USER_PAGE_TABLE_CNT; i++)
 	{
-		for ( unsigned int j = 0; j < PageTable::ENTRY_CNT_PER_PAGETABLE; j++ )
+		for (unsigned int j = 0; j < PageTable::ENTRY_CNT_PER_PAGETABLE; j++)
 		{
-			pUserPageTable[i].m_Entrys[j].m_Present = 0;   //先清0
+			pUserPageTable[i].m_Entrys[j].m_Present = 0; // 先清0
 
-			if ( 1 == this->m_UserPageTableArray[i].m_Entrys[j].m_Present )
+			if (1 == this->m_UserPageTableArray[i].m_Entrys[j].m_Present)
 			{
 				/* 只读属性表示正文段对应的页，以pText->x_caddr为内存起始地址 */
-				if ( 0 == this->m_UserPageTableArray[i].m_Entrys[j].m_ReadWriter )
+				if (0 == this->m_UserPageTableArray[i].m_Entrys[j].m_ReadWriter)
 				{
 					pUserPageTable[i].m_Entrys[j].m_Present = 1;
 					pUserPageTable[i].m_Entrys[j].m_ReadWriter = this->m_UserPageTableArray[i].m_Entrys[j].m_ReadWriter;
 					pUserPageTable[i].m_Entrys[j].m_PageBaseAddress = this->m_UserPageTableArray[i].m_Entrys[j].m_PageBaseAddress + (textAddress >> 12);
 				}
 				/* 读写属性表示数据段对应的页，以p_addr为内存起始地址 */
-				else if ( 1 == this->m_UserPageTableArray[i].m_Entrys[j].m_ReadWriter )
+				else if (1 == this->m_UserPageTableArray[i].m_Entrys[j].m_ReadWriter)
 				{
 					pUserPageTable[i].m_Entrys[j].m_Present = 1;
 					pUserPageTable[i].m_Entrys[j].m_ReadWriter = this->m_UserPageTableArray[i].m_Entrys[j].m_ReadWriter;
@@ -179,4 +177,64 @@ void MemoryDescriptor::MapToPageTable()
 	pUserPageTable[0].m_Entrys[0].m_PageBaseAddress = 0;
 
 	FlushPageDirectory();
+}
+
+void MemoryDescriptor::NMapToPageTable()
+{
+    User &u = Kernel::Instance().GetUser();
+
+    if (u.u_MemoryDescriptor.m_UserPageTableArray == NULL)
+        return;
+
+    PageTable *pUserPageTable = Machine::Instance().GetUserPageTableArray();
+
+    // 获取代码段和数据段、堆栈段的长度
+    unsigned long textSize = u.u_procp->p_textp ? u.u_procp->p_textp->x_size : 0;
+    unsigned long dataSize = u.u_procp->p_size;
+	unsigned long stackSize = u.u_MemoryDescriptor.GetStackSize();
+
+	// 获取代码段和数据段、页表项的虚拟地址
+    unsigned long textAddress = u.u_procp->p_textp ? u.u_procp->p_textp->x_caddr : 0;
+    unsigned long dataAddress = u.u_procp->p_addr;
+    unsigned long stackStartAddress = (USER_SPACE_START_ADDRESS + USER_SPACE_SIZE - stackSize) & 0xFFFFF000;
+
+    // 计算代码段和数据段、堆栈段的页数
+    unsigned int textPages = (textSize + PageManager::PAGE_SIZE - 1) / PageManager::PAGE_SIZE;
+    unsigned int dataPages = (dataSize + PageManager::PAGE_SIZE - 1) / PageManager::PAGE_SIZE;
+	unsigned int stackPages = (stackSize + PageManager::PAGE_SIZE - 1) / PageManager::PAGE_SIZE;
+
+    // 页表的索引，初始为0
+    unsigned int pageIndex = 0;
+
+    // 填充代码段的页表项
+    for (unsigned int i = 0; i < textPages; i++, pageIndex++)
+    {
+        pUserPageTable[pageIndex / PageTable::ENTRY_CNT_PER_PAGETABLE].m_Entrys[pageIndex % PageTable::ENTRY_CNT_PER_PAGETABLE].m_Present = 1;
+        pUserPageTable[pageIndex / PageTable::ENTRY_CNT_PER_PAGETABLE].m_Entrys[pageIndex % PageTable::ENTRY_CNT_PER_PAGETABLE].m_ReadWriter = 0;  // 只读
+        pUserPageTable[pageIndex / PageTable::ENTRY_CNT_PER_PAGETABLE].m_Entrys[pageIndex % PageTable::ENTRY_CNT_PER_PAGETABLE].m_PageBaseAddress = textAddress + i * PageManager::PAGE_SIZE;
+    }
+
+    // 填充数据段的页表项
+    for (unsigned int i = 0; i < dataPages; i++, pageIndex++)
+    {
+        pUserPageTable[pageIndex / PageTable::ENTRY_CNT_PER_PAGETABLE].m_Entrys[pageIndex % PageTable::ENTRY_CNT_PER_PAGETABLE].m_Present = 1;
+        pUserPageTable[pageIndex / PageTable::ENTRY_CNT_PER_PAGETABLE].m_Entrys[pageIndex % PageTable::ENTRY_CNT_PER_PAGETABLE].m_ReadWriter = 1;  // 读写
+        pUserPageTable[pageIndex / PageTable::ENTRY_CNT_PER_PAGETABLE].m_Entrys[pageIndex % PageTable::ENTRY_CNT_PER_PAGETABLE].m_PageBaseAddress = dataAddress + i * PageManager::PAGE_SIZE;
+    }
+
+
+    for (unsigned int i = 0; i < stackPages; i++, pageIndex++)
+    {
+        pUserPageTable[pageIndex / PageTable::ENTRY_CNT_PER_PAGETABLE].m_Entrys[pageIndex % PageTable::ENTRY_CNT_PER_PAGETABLE].m_Present = 1;
+        pUserPageTable[pageIndex / PageTable::ENTRY_CNT_PER_PAGETABLE].m_Entrys[pageIndex % PageTable::ENTRY_CNT_PER_PAGETABLE].m_ReadWriter = 1;  // 读写
+        pUserPageTable[pageIndex / PageTable::ENTRY_CNT_PER_PAGETABLE].m_Entrys[pageIndex % PageTable::ENTRY_CNT_PER_PAGETABLE].m_PageBaseAddress = stackStartAddress + i * PageManager::PAGE_SIZE;
+    }
+
+    // 设置页表的根项
+    pUserPageTable[0].m_Entrys[0].m_Present = 1;
+    pUserPageTable[0].m_Entrys[0].m_ReadWriter = 1;
+    pUserPageTable[0].m_Entrys[0].m_PageBaseAddress = 0;  // 根页表项的物理地址
+
+    // 刷新页目录
+    FlushPageDirectory();
 }

@@ -174,7 +174,7 @@ void Process::Expand(unsigned int newSize)
 	RetU();
 	X86Assembly::STI();
 
-	u.u_MemoryDescriptor.MapToPageTable();
+	u.u_MemoryDescriptor.NMapToPageTable();
 }
 
 void Process::Exit()
@@ -346,7 +346,7 @@ void Process::SStack()
 		Utility::CopySeg(dst - change, dst);
 	}
 
-	u.u_MemoryDescriptor.MapToPageTable();
+	u.u_MemoryDescriptor.NMapToPageTable();
 }
 
 

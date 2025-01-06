@@ -180,7 +180,7 @@ int ProcessManager::Swtch()
 
 	User& newu = Kernel::Instance().GetUser();
 
-	newu.u_MemoryDescriptor.MapToPageTable();
+	newu.u_MemoryDescriptor.NMapToPageTable();
 	
 	/*
 	 * If the new process paused because it was

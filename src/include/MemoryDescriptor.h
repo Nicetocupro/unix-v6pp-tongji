@@ -33,6 +33,10 @@ public:
 	 * PageTable中，然后使用FlushPageDirectory()函数完成页表映射，新上台进程的用户区数据映射完成 */
 	void MapToPageTable();
 
+	/* @comment 上面的MapToPageTable是利用相对虚实映射表将PageTable中的页表映射到物理页表中，
+	 *这个地方将不再使用相对虚实映射表进行映射*/
+	void NMapToPageTable();
+
 	/* 
 	 * @comment 原unix v6中estabur()函数，用于建立用户态地址空间的相对地址映射表，然后调用
 	 * MapToPageTable()函数将相对地址映射表加载到用户态页表中。
@@ -71,4 +75,3 @@ public:
 };
 
 #endif
-
