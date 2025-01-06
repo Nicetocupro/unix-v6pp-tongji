@@ -219,8 +219,11 @@ private:
 	
 	/*	48 = sig	count = 2	*/
 	static int Sys_Ssig();
+
+	/*	49 =Getppid count = 1	*/
+	static int Sys_Getppid();
 	
-	/*	49 ~ 63 = nosys	count = 0	*/	
+	/*	50 ~ 63 = nosys	count = 0	*/	
 
 
 private:

@@ -7,7 +7,7 @@
             "request": "launch",
 
             //"program": "${workspaceFolder}/target/objs/kernel.exe",
-            "program": "${workspaceFolder}/target/objs/apps-elf/ls",
+            "program": "${workspaceFolder}/target/objs/apps-elf/getppid",
             //"program": "${workspaceFolder}/target/objs/Shell.elf.exe",
             //                           check this   ^^^^^^^^^^^
             

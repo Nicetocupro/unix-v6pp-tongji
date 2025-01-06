@@ -17,5 +17,6 @@
         "newt.h": "c",
         "stdio.h": "c",
         "__splash.h": "c"
-    }
+    },
+    "cmake.sourceDirectory": "/home/vesper_center_293/unix-v6pp-tongji/programs"
 }

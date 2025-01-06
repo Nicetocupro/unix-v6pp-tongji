@@ -193,4 +193,14 @@ int sbrk(int increment)
 	return fakeedata;
 }
 
+int getppid(int pid)
+{
+	int res;
+	__asm__ volatile ("int $0x80":"=a"(res):"a"(49),"b"(pid) );
 
+	if(res >= 0)
+	{
+		return res;
+	}
+	return -1;
+}
