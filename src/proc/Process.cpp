@@ -232,7 +232,7 @@ void Process::Exit()
 	bufMgr.Bwrite(pBuf);
 
 	/* 释放内存资源 */
-	u.u_MemoryDescriptor.Release();
+	// u.u_MemoryDescriptor.Release();
 	Process* current = u.u_procp;
 	UserPageManager& userPageMgr = Kernel::Instance().GetUserPageManager();
 	userPageMgr.FreeMemory(current->p_size, current->p_addr);
@@ -330,8 +330,7 @@ void Process::SStack()
 	md.m_StackSize += change;
 	unsigned int newSize = ProcessManager::USIZE + md.m_DataSize + md.m_StackSize;
 
-	if ( false == u.u_MemoryDescriptor.EstablishUserPageTable(md.m_TextStartAddress,
-						md.m_TextSize, md.m_DataStartAddress, md.m_DataSize, md.m_StackSize) )
+	if (md.m_TextSize + md.m_DataSize + md.m_StackSize + PageManager::PAGE_SIZE > md.USER_SPACE_SIZE - md.m_TextStartAddress)
 	{
 		u.u_error = User::ENOMEM;
 		return;
@@ -363,8 +362,7 @@ void Process::SBreak()
 		return;
 	}
 
-	if ( false == u.u_MemoryDescriptor.EstablishUserPageTable(md.m_TextStartAddress, 
-						md.m_TextSize, md.m_DataStartAddress, newSize, md.m_StackSize) )
+	if ( md.m_TextSize + newSize + md.m_StackSize + PageManager::PAGE_SIZE > md.USER_SPACE_SIZE - md.m_TextStartAddress )
 	{
 		//系统调用出错时，不可以用这种方式返回。执行这条路径会导致 u.u_intflg == 1，u.u_error被错误修改为EINTR（4）；无论何故导致系统调用失败。
 		//aRetU(u.u_qsav);
@@ -373,6 +371,10 @@ void Process::SBreak()
 
 	int change = newSize - md.m_DataSize;
 	md.m_DataSize = newSize;
+	
+	// 刚刚更新了m_DataSize就可以将表更新了
+	u.u_MemoryDescriptor.NMapToPageTable();
+
 	newSize += ProcessManager::USIZE + md.m_StackSize;
 
 	/* 数据段缩小 */
