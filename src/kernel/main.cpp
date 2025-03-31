@@ -1,4 +1,4 @@
-/* 内核的初始化 */
+/* 鍐呮牳鐨勫垵濮嬪寲 */
 
 #include "Video.h"
 #include "Simple.h"
@@ -34,12 +34,12 @@ bool isInit = false;
 extern "C" void MasterIRQ7()
 {
 	SaveContext();
-
+	
 	Diagnose::Write("IRQ7 from Master 8259A!\n");
-
-	// 需要在中断处理程序末尾先8259A发送EOI命令
-	// 实验发现：有没有下面IOPort::OutByte(0x27, 0x20);这句运行效果都一样，本来以为
-	// 发送EOI命令之后会有后续的IRQ7中断进入， 但试下来结果是IRQ7只会产生一次。
+	
+	//闇€瑕佸湪涓柇澶勭悊绋嬪簭鏈熬鍏�8259A鍙戦€丒OI鍛戒护
+	//瀹為獙鍙戠幇锛氭湁娌℃湁涓嬮潰IOPort::OutByte(0x27, 0x20);杩欏彞杩愯鏁堟灉閮戒竴鏍凤紝鏈潵浠ヤ负
+	//鍙戦€丒OI鍛戒护涔嬪悗浼氭湁鍚庣画鐨処RQ7涓柇杩涘叆锛� 浣嗚瘯涓嬫潵缁撴灉鏄疘RQ7鍙細浜х敓涓€娆°€�
 	IOPort::OutByte(Chip8259A::MASTER_IO_PORT_1, Chip8259A::EOI);
 
 	RestoreContext();
@@ -49,49 +49,52 @@ extern "C" void MasterIRQ7()
 	InterruptReturn();
 }
 
+
 static void callCtors()
 {
 	extern void (*__CTOR_LIST__)();
-	extern void (*__CTOR_END__)();
-
+	extern void (* __CTOR_END__)();
+	
+	
 	void (**constructor)() = &__CTOR_LIST__;
 
-	// constructor++;
-	/*  (可以先看一下链接脚本：Link.ld)
-	Link script中修改过后，这里的total已经不是constructor的个数了，
-	_CTOR_LIST__的第一个单元开始就是global/static对象的constructor，
-	所以不用 constructor++;
-	*/
-
-	while (constructor != &__CTOR_END__) // total不是constructor的数量，而是用于检测是否到了_CTOR_LIST__的末尾
+	
+	//constructor++;   
+		/*  (鍙互鍏堢湅涓€涓嬮摼鎺ヨ剼鏈細Link.ld)
+		Link script涓慨鏀硅繃鍚庯紝杩欓噷鐨則otal宸茬粡涓嶆槸constructor鐨勪釜鏁颁簡锛�
+		_CTOR_LIST__鐨勭涓€涓崟鍏冨紑濮嬪氨鏄痝lobal/static瀵硅薄鐨刢onstructor锛�
+		鎵€浠ヤ笉鐢� constructor++; 
+		*/
+	
+	while(constructor != &__CTOR_END__) //total涓嶆槸constructor鐨勬暟閲忥紝鑰屾槸鐢ㄤ簬妫€娴嬫槸鍚﹀埌浜哶CTOR_LIST__鐨勬湯灏�
 	{
 		(*constructor)();
 		constructor++;
 	}
 }
 
-static void initBss()
-{ // https://github.com/FlowerBlackG/YurongOS/blob/master/src/misc/main.cpp
+static void initBss() {  // https://github.com/FlowerBlackG/YurongOS/blob/master/src/misc/main.cpp
 	extern unsigned int __BSS_START__;
-	extern unsigned int __BSS_END__;
+    extern unsigned int __BSS_END__;
 
-	unsigned int bssStart = (unsigned int)&__BSS_START__;
-	unsigned int bssEnd = (unsigned int)&__BSS_END__;
 
-	for (unsigned int pos = bssStart; pos < bssEnd; pos++)
-	{
-		*((char *)pos) = 0;
-	}
+    unsigned int bssStart = (unsigned int) &__BSS_START__;
+    unsigned int bssEnd = (unsigned int) &__BSS_END__;
+
+    for (unsigned int pos = bssStart; pos < bssEnd; pos++) {
+        * ((char*) pos) = 0;
+    }
 }
+
 
 static void callDtors()
 {
-	extern void (*__DTOR_LIST__)();
-	extern void (*__DTOR_END__)();
-
+	extern void (* __DTOR_LIST__)();
+	extern void (* __DTOR_END__)();
+	
 	void (**deconstructor)() = &__DTOR_LIST__;
-
-	while (deconstructor != &__DTOR_END__)
+	
+	while(deconstructor != &__DTOR_END__)
 	{
 		(*deconstructor)();
 		++deconstructor;
@@ -100,123 +103,105 @@ static void callDtors()
 
 void main0(void)
 {
-	Machine &machine = Machine::Instance();
+	Machine& machine = Machine::Instance();
 
-	Chip8253::Init(60); // 初始化时钟中断芯片
+	Chip8253::Init(60);	//鍒濆鍖栨椂閽熶腑鏂姱鐗�
 	Chip8259A::Init();
-	Chip8259A::IrqEnable(Chip8259A::IRQ_TIMER);
+	Chip8259A::IrqEnable(Chip8259A::IRQ_TIMER);		
 	DMA::Init();
 	Chip8259A::IrqEnable(Chip8259A::IRQ_IDE);
 	Chip8259A::IrqEnable(Chip8259A::IRQ_SLAVE);
 	Chip8259A::IrqEnable(Chip8259A::IRQ_KBD);
 
-	// init gdt
+	//init gdt
 	machine.InitGDT();
 	machine.LoadGDT();
-	// init idt
-	machine.InitIDT();
+
+	//init idt
+	machine.InitIDT();	
 	machine.LoadIDT();
 
-	machine.InitPageDirectory();			 // 初始化页目录、核心态页表
-	Machine::Instance().InitUserPageTable(); // 初始化用户态页表
-	machine.EnablePageProtection();			 // 开启分页模式
-	/*
-	 * InitPageDirectory()中将线性地址0-4M映射到物理内存
-	 * 0-4M是为保证此注释以下至本函数结尾的代码正确执行！
-	 *
-	 * 现在，除了CS是内核初始化阶段的段选择子，其余段寄存器全是boot使用的段选择子，尤其是SS。
-	 * 分段单元给出的线性地址是[0,4M)。开启分页模式后，一定要有这段空间的映射关系，否则，通不过。
-	 * [4M，8M)空间用户区，不应该被映射，所以先空着，InitUserPageTable(),base填0。
+	//init page protection
+	machine.InitPageDirectory();
+	machine.EnablePageProtection();
+	/* 
+	 * InitPageDirectory()涓皢绾挎€у湴鍧€0-4M鏄犲皠鍒扮墿鐞嗗唴瀛�
+	 * 0-4M鏄负淇濊瘉姝ゆ敞閲婁互涓嬭嚦鏈嚱鏁扮粨灏剧殑浠ｇ爜姝ｇ‘鎵ц锛�
 	 */
 
-	// 使用0x10段寄存器
-	__asm(" \
+	// 设置段寄存器（平坦模型）
+	__asm__ __volatile__(" \
 		mov $0x10, %ax\n\t \
 		mov %ax, %ds\n\t \
 		mov %ax, %ss\n\t \
 		mov %ax, %es\n\t");
 
-	// 将初始化堆栈设置为0xc0400000，这里破坏了封装性，考虑使用更好的方法
-	__asm(
+    // 初始化内核堆栈
+	__asm__ __volatile__(
 		" \
 		mov $0xc0400000, %ebp \n\t \
 		mov $0xc0400000, %esp \n\t \
 		jmp $0x8, $next");
-
-	__asm("ud2");
+	
 }
 
-/* 应用程序从main返回，进程就终止了，这全是runtime()的功劳。没有它，就只能用exit终止进程了。xV6没这个功能^-^ */
+/* 搴旂敤绋嬪簭浠巑ain杩斿洖锛岃繘绋嬪氨缁堟浜嗭紝杩欏叏鏄痳untime()鐨勫姛鍔炽€傛病鏈夊畠锛屽氨鍙兘鐢╡xit缁堟杩涚▼浜嗐€倄V6娌¤繖涓姛鑳絕-^ */
 extern "C" void runtime()
 {
 	/*
-	1. 销毁runtime的stack Frame
-	2. esp中指向用户栈中argc位置，而ebp尚未正确初始化
-	3. eax中存放可执行程序EntryPoint
-	4~6. exit(0)结束进程
+	1. 閿€姣乺untime鐨剆tack Frame
+	2. esp涓寚鍚戠敤鎴锋爤涓璦rgc浣嶇疆锛岃€宔bp灏氭湭姝ｇ‘鍒濆鍖�
+	3. eax涓瓨鏀惧彲鎵ц绋嬪簭EntryPoint
+	4~6. exit(0)缁撴潫杩涚▼
 	*/
 	__asm("	leave;	\
 			movl %%esp, %%ebp;	\
 			call *%%eax;		\
 			movl $1, %%eax;	\
 			movl $0, %%ebx;	\
-			int $0x80" ::);
+			int $0x80"::);
 }
 
 /*
- * 1#进程在执行完MoveToUserStack()从ring0退出到ring3优先级后，会调用ExecShell()，此函数通过"int $0x80"
- * (EAX=execv系统调用号)加载“/Shell.exe”程序，其功能相当于在用户程序中执行系统调用execv(char* pathname, char* argv[])。
- */
+  * 1#杩涚▼鍦ㄦ墽琛屽畬MoveToUserStack()浠巖ing0閫€鍑哄埌ring3浼樺厛绾у悗锛屼細璋冪敤ExecShell()锛屾鍑芥暟閫氳繃"int $0x80"
+  * (EAX=execv绯荤粺璋冪敤鍙�)鍔犺浇鈥�/Shell.exe鈥濈▼搴忥紝鍏跺姛鑳界浉褰撲簬鍦ㄧ敤鎴风▼搴忎腑鎵ц绯荤粺璋冪敤execv(char* pathname, char* argv[])銆�
+  */
 extern "C" void ExecShell()
 {
 	int argc = 0;
-	char *argv = NULL;
-	const char *pathname = "/Shell.exe";
-	__asm("int $0x80" ::"a"(11 /* execv */), "b"(pathname), "c"(argc), "d"(argv));
+	char* argv = NULL;
+	const char* pathname = "/Shell.exe";
+
+	__asm ("int $0x80"::"a"(11/* execv */),"b"(pathname),"c"(argc),"d"(argv));
 	return;
 }
-
-#if 0
-/* 此函数test文件夹中的代码会引用，但貌似可以删除，记得把它删掉*/
-extern "C" void Delay()
-{
-	for ( int i = 0; i < 50; i++ )
-		for ( int j = 0; j < 10000; j++ )
-		{
-			int a;
-			int b;
-			int c=a+b;
-			c++;
-		}
-}
-#endif
 
 int splash();
 
 extern "C" void next()
 {
-
+	
 #ifdef USE_VESA
-	intptr_t vesaModeInfoAddr = Machine::KERNEL_SPACE_START_ADDRESS + 0x7e00;
-	auto &vesaModeInfo = *(video::svga::VbeModeInfo *)vesaModeInfoAddr;
-	video::svga::init(&vesaModeInfo);
+	    intptr_t vesaModeInfoAddr = Machine::KERNEL_SPACE_START_ADDRESS + 0x7e00;
+		auto& vesaModeInfo = * (video::svga::VbeModeInfo*) vesaModeInfoAddr;
+		video::svga::init(&vesaModeInfo);
 
-	Machine::Instance().InitVESAMemoryMap(
-		vesaModeInfo.framebuffer,
-		video::svga::VESA_SCREEN_VADDR,
-		video::svga::bytesPerPixel * vesaModeInfo.height * vesaModeInfo.width);
+		Machine::Instance().InitVESAMemoryMap(
+			vesaModeInfo.framebuffer,
+			video::svga::VESA_SCREEN_VADDR,
+			video::svga::bytesPerPixel * vesaModeInfo.height * vesaModeInfo.width
+		);
 
-	video::console::init();
-	video::console::writeOutput("VESA enabled.\n", -1, 0xfeba07);
-
+		video::console::init();
+		video::console::writeOutput("VESA enabled.\n", -1, 0xfeba07);
+	
 #endif
 
-	// 这个时候0M-4M的内存映射已经不被使用了，所以要重新映射用户态的页表，为用户态程序运行做好准备
-	// Machine::Instance().InitUserPageTable();
-	// FlushPageDirectory();
-
+	//这个时候0M-4M的内存映射已经不被使用了，所以要重新映射用户态的页表，为用户态程序运行做好准备
+	Machine::Instance().InitUserPageTable();
+	FlushPageDirectory();
 	Machine::Instance().LoadTaskRegister();
-
+	
 	/* 获取CMOS当前时间，设置系统时钟 */
 	struct SystemTime cTime;
 	CMOSTime::ReadCMOSTime(&cTime);
@@ -224,7 +209,7 @@ extern "C" void next()
 	Time::time = Utility::MakeKernelTime(&cTime);
 
 	/* 从CMOS中获取物理内存大小 */
-	unsigned short memSize = 0; /* size in KB */
+	unsigned short memSize = 0;	/* size in KB */
 	unsigned char lowMem, highMem;
 
 	/* 这里只是借用CMOSTime类中的ReadCMOSByte函数读取CMOS中物理内存大小信息 */
@@ -238,80 +223,81 @@ extern "C" void next()
 	UserPageManager::USER_PAGE_POOL_SIZE = PageManager::PHY_MEM_SIZE - UserPageManager::USER_PAGE_POOL_START_ADDR;
 
 	/* 真正操作系统内核初始化逻辑	 */
-	Kernel::Instance().Initialize();
+	Kernel::Instance().Initialize();	
 	Kernel::Instance().GetProcessManager().SetupProcessZero();
 	isInit = true;
 
 	Kernel::Instance().GetFileSystem().LoadSuperBlock();
 	Diagnose::Write("Unix V6++ FileSystem Loaded......OK\n");
 
-	Diagnose::Write("test \n");
+	/* 初始化rootDirInode和用户当前工作目录，以便NameI()正常工作 */
+	FileManager& fileMgr = Kernel::Instance().GetFileManager();
 
-	/*  初始化rootDirInode和用户当前工作目录，以便NameI()正常工作 */
-	FileManager &fileMgr = Kernel::Instance().GetFileManager();
-
-	// fileMgr.rootDirInode = g_InodeTable.IGet(DeviceManager::ROOTDEV, FileSystem::ROOTINO);
 	fileMgr.rootDirInode = g_InodeTable.IGet(DeviceManager::ROOTDEV, 1);
 	fileMgr.rootDirInode->i_flag &= (~Inode::ILOCK);
 
-	User &us = Kernel::Instance().GetUser();
+	User& us = Kernel::Instance().GetUser();
 	us.u_cdir = g_InodeTable.IGet(DeviceManager::ROOTDEV, 1);
-	// us.u_cdir = g_InodeTable.IGet(DeviceManager::ROOTDEV, FileSystem::ROOTINO);
 	us.u_cdir->i_flag &= (~Inode::ILOCK);
 	strcpy(us.u_curdir, "/");
 
 	/* 打开TTy设备 */
 	int fd_tty = lib_open("/dev/tty1", File::FREAD);
 
-	if (fd_tty != 0)
+	if ( fd_tty != 0 )
 	{
-		// 返回结果是 3 ？？？
-		Utility::Panic("STDIN Error!"); // 输出错误信息和 fd_tty 的值
+		Utility::Panic("STDIN Error!");
 	}
 	fd_tty = lib_open("/dev/tty1", File::FWRITE);
-	if (fd_tty != 1)
+	if ( fd_tty != 1 )
 	{
 		Utility::Panic("STDOUT Error!");
 	}
 	Diagnose::TraceOn();
+
 
 #ifdef ENABLE_SPLASH
 	// show splash.
 	splash();
 #endif
 
-	unsigned char *runtimeSrc = (unsigned char *)runtime;
-	unsigned char *runtimeDst = 0x00000000;
+	unsigned char* runtimeSrc = (unsigned char*)runtime;
+	unsigned char* runtimeDst = 0x00000000;
 	for (unsigned int i = 0; i < (unsigned long)ExecShell - (unsigned long)runtime; i++)
 	{
 		*runtimeDst++ = *runtimeSrc++;
 	}
 
-	// us.u_MemoryDescriptor.Release();
+    //us.u_MemoryDescriptor.Release();
 
-	int pid = Kernel::Instance().GetProcessManager().NewProc(); /* 0#进程创建1#进程 */
-	if (0 == pid)												/* 0#进程执行Sched()，成为系统中永远运行在核心态的唯一进程  */
+	int pid = Kernel::Instance().GetProcessManager().NewProc();         /* 0#进程创建1#进程 */
+	
+	if( 0 == pid )     
 	{
+		/* 0#进程执行Sched()，成为系统中永远运行在核心态的唯一进程  */
 		us.u_procp->p_ttyp = NULL;
 		Kernel::Instance().GetProcessManager().Sched();
 	}
-	else /* 1#进程执行应用程序shell.exe,是普通进程  */
+	else               
 	{
-		Machine::Instance().InitUserPageTable(); // 这是直接写0x202,0x203页表，没相对虚实地址映射表一样okay！
+		/* 1#进程执行应用程序shell.exe,是普通进程  */
+		Machine::Instance().InitUserPageTable();      //这是直接写0x202,0x203页表，没相对虚实地址映射表一样okay！
 		FlushPageDirectory();
 
 		CRT::ClearScreen();
 
 		/* 1#进程回用户态，执行exec("shell.exe")系统调用*/
 		MoveToUserStack();
-		__asm("call *%%eax" ::"a"((unsigned long)ExecShell - 0xC0000000)); // 要访问用户栈，所以一定要有映射！
+		
+		__asm ("call *%%eax" :: "a"((unsigned long)ExecShell - 0xC0000000));   //要访问用户栈，所以一定要有映射！
 	}
 }
 
-extern "C" void kernelBridge()
-{ // called by sector2.asm
+
+extern "C" void kernelBridge() {  // called by sector2.asm
 	initBss();
 	callCtors();
 	main0();
 	callDtors();
 }
+
